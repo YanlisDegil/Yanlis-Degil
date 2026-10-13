@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
       const j = await r.json();
       if (!r.ok) { lastErr = (j.error && j.error.message) || "API hatası"; continue; }
       const out = JSON.parse(j.candidates[0].content.parts[0].text);
-      if (b.mode === "q" && !(out.soru && Array.isArray(out.secenekler) && out.secenekler.length === 4 && out.dogru >= 0 && out.dogru <= 3)) { lastErr = "bozuk soru"; continue; }
+      if (b.mode === "q" && !(out.soru && Array.isArray(out.secenekler) && out.secenekler.length === 4 && out.dogru >= 0 && out.dogru <= 3 && Array.isArray(out.kisa) && out.kisa.length === 4 && out.ipucu && out.uzun)) { lastErr = "eksik üretim"; continue; }
       cache.good = model;
       out.model = model;
       return res.status(200).json(out);
