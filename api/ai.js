@@ -47,11 +47,11 @@ module.exports = async (req, res) => {
   const start = Date.now();
   let lastErr = "API hatası";
   for (const model of await candidates(key)) {
-    const left = 9000 - (Date.now() - start);
+    const left = 28000 - (Date.now() - start);
     if (left < 1500) break;
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body, signal: AbortSignal.timeout(Math.min(6000, left))
+        method: "POST", headers: { "Content-Type": "application/json" }, body, signal: AbortSignal.timeout(Math.min(14000, left))
       });
       const j = await r.json();
       if (!r.ok) { lastErr = (j.error && j.error.message) || "API hatası"; continue; }
@@ -60,7 +60,7 @@ module.exports = async (req, res) => {
       cache.good = model;
       out.model = model;
       return res.status(200).json(out);
-    } catch (e) { lastErr = "Model yanıt vermedi, başka model deneniyor"; }
+    } catch (e) { lastErr = model + ": " + (e.name === "TimeoutError" ? "zaman aşımı" : e.message); }
   }
   return res.status(502).json({ error: lastErr });
 };
