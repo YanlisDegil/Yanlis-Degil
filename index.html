@@ -62,7 +62,7 @@ function paras(t){return String(t).split(/\n+/).map(function(p){return"<p>"+esc(
 function head(){return'<h1><s>YANLIŞ</s> DEĞİL</h1><p class="sub">Yanlışını yakalar, nedenini anlatır.</p>'}
 function wkey(t){return S.g+"|"+S.s+"|"+t}
 function menu(){
-S.tp=null;
+S.tp=null;S.nextQ=null;S.nextP=null;
 var h=head()+'<h2>Sınıf</h2><div class="chips">';
 [9,10,11,12].forEach(function(g){h+='<button class="chip'+(S.g==g?" on":"")+'" data-g="'+g+'">'+g+'. sınıf</button>'});
 h+='</div><h2>Ders</h2><div class="chips">';
@@ -83,10 +83,20 @@ body.grade=S.g;body.subject=S.s;body.topic=S.tp;
 return fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||"Hata");return j})});
 }
+function show(q){S.q=q;S.asked.push(q.soru);S.n++;S.busy=false;draw();prefetch()}
+function fail(e){S.busy=false;S.err=e.message;draw()}
+function prefetch(){
+if(S.nextQ||S.nextP)return;
+var p=api({mode:"q",asked:S.asked}).then(function(q){if(S.nextP===p){S.nextP=null;S.nextQ=q}}).catch(function(){if(S.nextP===p)S.nextP=null});
+S.nextP=p;
+}
+function fresh(){api({mode:"q",asked:S.asked}).then(show).catch(fail)}
 function nextQ(){
-S.q=null;S.tries=0;S.hints=0;S.sel=[];S.fb="";S.locked=false;S.err="";S.busy=true;draw();
-api({mode:"q",asked:S.asked}).then(function(q){S.q=q;S.asked.push(q.soru);S.n++;S.busy=false;draw()})
-.catch(function(e){S.busy=false;S.err=e.message;draw()});
+S.q=null;S.tries=0;S.hints=0;S.sel=[];S.fb="";S.locked=false;S.err="";
+if(S.nextQ){var q=S.nextQ;S.nextQ=null;show(q);return}
+S.busy=true;draw();
+if(S.nextP){S.nextP.then(function(){if(S.nextQ){var q=S.nextQ;S.nextQ=null;show(q)}else fresh()});return}
+fresh();
 }
 function draw(){
 var h=head()+'<div class="meta"><span>'+esc(S.s)+' · '+esc(S.tp)+'</span><span>İlk denemede: '+S.score+' / '+Math.max(S.n-(S.locked?0:1),0)+'</span></div><div class="card">';
