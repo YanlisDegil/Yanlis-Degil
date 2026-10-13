@@ -120,7 +120,14 @@ e=document.getElementById("next");if(e)e.onclick=nextQ;
 e=document.getElementById("back");if(e)e.onclick=menu;
 }
 function weak(){var k=wkey(S.tp==="Karışık"?"Karışık":S.tp);W[k]=(W[k]||0)+1;saveW()}
-function explain(attempt){
+function explain(a){
+var q=S.q,t=a==1?(S.sel.length?q.kisa&&q.kisa[S.sel[S.sel.length-1]]:q.ipucu):q.uzun;
+if(!t)return explainAPI(a);
+if(a==1)S.fb='<div class="fb s"><b>Nokta atışı</b>'+paras(t)+'<p>Tekrar dene.</p></div>';
+else{S.locked=true;S.fb='<div class="fb l"><b>Konuyu baştan açalım</b>'+paras(t)+'</div>'}
+draw();
+}
+function explainAPI(attempt){
 S.busy=true;draw();
 api({mode:"explain",question:S.q,chosen:S.sel,attempt:attempt}).then(function(r){
 S.busy=false;
