@@ -1,9 +1,8 @@
-// Vercel serverless fonksiyonu. Ortam değişkeni: GEMINI_API_KEY (isteğe bağlı: GEMINI_MODEL)
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "POST gerekli" });
   const key = process.env.GEMINI_API_KEY;
   if (!key) return res.status(500).json({ error: "GEMINI_API_KEY tanımlı değil" });
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const models = [...new Set([process.env.GEMINI_MODEL, "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.5-flash"].filter(Boolean))];
   const b = req.body || {};
   const ders = `${b.grade}. sınıf ${b.subject} dersi, "${b.topic}" konusu (MEB lise müfredatı)`;
   const kural = "Türkçe yaz. Düz metin kullan, LaTeX veya markdown kullanma (x², √, ½ gibi karakterler olur). Sadece geçerli JSON döndür.";
@@ -22,18 +21,23 @@ module.exports = async (req, res) => {
       prompt = `${ders}.\n${bilgi}\nÖğrenci tekrar yanlış yaptı (seçtikleri: ${secim || "yok"}). Geniş ve öğretici anlat: 1) ilgili kavramı sıfırdan, sade dille 2) seçtiği şıkların neden yanlış olduğunu 3) doğru cevabı ve nedenini adım adım 4) akılda kalacak kısa bir örnek veya kural. 8-12 cümle, paragrafları \\n ile ayır. ${kural} Biçim: {"aciklama":"..."}`;
     }
   } else return res.status(400).json({ error: "geçersiz mod" });
-  try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.8 } })
-    });
-    const j = await r.json();
-    if (!r.ok) return res.status(502).json({ error: (j.error && j.error.message) || "API hatası" });
-    const out = JSON.parse(j.candidates[0].content.parts[0].text);
-    if (b.mode === "q" && !(out.soru && Array.isArray(out.secenekler) && out.secenekler.length === 4 && out.dogru >= 0 && out.dogru <= 3)) throw new Error("bozuk soru");
-    return res.status(200).json(out);
-  } catch (e) {
-    return res.status(500).json({ error: "Üretim başarısız, tekrar dene" });
+  const body = JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.8 } });
+  let lastErr = "API hatası";
+  for (const model of models) {
+    for (let i = 0; i < 2; i++) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+        const j = await r.json();
+        if (!r.ok) {
+          lastErr = (j.error && j.error.message) || "API hatası";
+          if (r.status === 503 || r.status === 429) { await new Promise(s => setTimeout(s, 800)); continue; }
+          break;
+        }
+        const out = JSON.parse(j.candidates[0].content.parts[0].text);
+        if (b.mode === "q" && !(out.soru && Array.isArray(out.secenekler) && out.secenekler.length === 4 && out.dogru >= 0 && out.dogru <= 3)) { lastErr = "bozuk soru"; continue; }
+        return res.status(200).json(out);
+      } catch (e) { lastErr = "Üretim başarısız"; }
+    }
   }
+  return res.status(502).json({ error: lastErr });
 };
